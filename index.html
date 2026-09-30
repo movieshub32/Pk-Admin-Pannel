@@ -1,76 +1,790 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow">
+    <title>Admin Panel - Pk Movies</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<style>
-body {
-    margin: 0;
-    padding: 0;
-    background: #ffffff;
-    font-family: Arial, sans-serif;
-    text-align: center;
-}
+    <style>
+        :root{
+            --bg:#0b1220;
+            --bg-2:#0f172a;
+            --surface:#161f35;
+            --surface-2:#1c2944;
+            --border:#283353;
+            --primary:#3b6dff;
+            --primary-2:#6d8fff;
+            --success:#16c784;
+            --danger:#ef4444;
+            --warn:#f59e0b;
+            --text:#e9edf7;
+            --text-dim:#8c96b3;
+            --radius:12px;
+        }
 
-.container {
-    margin-top: 100px;
-}
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
-.click-here {
-    font-size: 18px;
-    font-weight: bold;
-    color: #333;
-    margin-bottom: 12px;
-}
+        ::-webkit-scrollbar{ width:8px; }
+        ::-webkit-scrollbar-track{ background: var(--bg); }
+        ::-webkit-scrollbar-thumb{ background: var(--primary); border-radius: 10px; }
 
-.aviator-link {
-    display: inline-block;
-    color: #ff0000;
-    font-size: 32px;
-    font-weight: 900;
-    text-decoration: none;
-    margin-bottom: 25px;
-}
+        body {
+            font-family: 'Inter', sans-serif;
+            background:
+                radial-gradient(800px 400px at 100% 0%, rgba(59,109,255,.10), transparent 60%),
+                linear-gradient(180deg, var(--bg), var(--bg-2));
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
 
-.video-link {
-    display: inline-block;
-    color: #00a000;
-    font-size: 30px;
-    font-weight: 900;
-    text-decoration: none;
-}
-</style>
+        h1,h2,h3,.logo{ font-family:'Poppins',sans-serif; }
+
+        /* --- APP LOCK --- */
+        #app-lock-overlay {
+            position: fixed; inset: 0; background: var(--bg); z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .lock-box {
+            background: var(--surface);
+            padding: 36px 30px;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            text-align: center;
+            box-shadow: 0 25px 60px rgba(0,0,0,.5);
+            width: 90%; max-width: 360px;
+        }
+        .lock-box i{
+            background: linear-gradient(135deg, var(--primary), var(--primary-2));
+            -webkit-background-clip:text; color:transparent;
+        }
+        .lock-box h2 { color: #fff; margin: 14px 0 22px; font-size: 19px; font-weight:700; }
+        .lock-input {
+            width: 100%; padding: 13px; margin-bottom: 16px; border-radius: 10px;
+            border: 1px solid var(--border); background: var(--bg-2); color: #fff;
+            text-align: center; font-size: 17px; letter-spacing: 3px; font-family:'Inter',sans-serif;
+        }
+        .lock-input:focus{ outline:none; border-color: var(--primary); }
+
+        /* --- LAYOUT --- */
+        .sidebar {
+            width: 250px; background: var(--surface);
+            position: fixed; height: 100%; transition: 0.3s; z-index: 100;
+            border-right: 1px solid var(--border);
+            padding-bottom: 20px;
+        }
+        .logo {
+            padding: 22px 20px; font-size: 18px; font-weight: 700; color: #fff;
+            border-bottom: 1px solid var(--border); display:flex; align-items:center; gap:10px;
+        }
+        .logo i{ color: var(--primary-2); }
+        .nav-item {
+            padding: 14px 22px; cursor: pointer; color: var(--text-dim);
+            display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500;
+            border-left: 3px solid transparent; transition: 0.2s;
+        }
+        .nav-item i{ width: 18px; text-align:center; }
+        .nav-item:hover { background: rgba(59,109,255,.08); color: #fff; }
+        .nav-item.active { background: rgba(59,109,255,.14); color: #fff; border-left-color: var(--primary); }
+
+        .main-content { flex: 1; margin-left: 250px; padding: 22px 24px 60px; transition: 0.3s; }
+
+        @media(max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.active { transform: translateX(0); }
+            .main-content { margin-left: 0; padding-top: 70px; }
+        }
+
+        /* --- STATS --- */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 22px; }
+        .stat-card {
+            background: var(--surface); padding: 20px; border-radius: var(--radius);
+            border: 1px solid var(--border); display:flex; align-items:center; gap:14px;
+            transition:.2s;
+        }
+        .stat-card:hover{ border-color: var(--primary); }
+        .stat-icon{
+            width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+            background: rgba(59,109,255,.12); color: var(--primary-2); font-size:18px;
+        }
+        .stat-val { font-size: 24px; font-weight: 700; color: white; line-height:1.1; }
+        .stat-card p{ color: var(--text-dim); font-size: 12px; margin-top:2px; }
+
+        /* --- SECTIONS --- */
+        .content-section { display: none; }
+        .content-section.active { display: block; animation: fade 0.3s; }
+        @keyframes fade { from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+        .card { background: var(--surface); padding: 22px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 20px; }
+        .card h3{ font-size:16px; margin-bottom:16px; color:#fff; font-weight:600; }
+        .form-group { margin-bottom: 15px; }
+        .form-control {
+            width: 100%; padding: 11px; background: var(--bg-2); border: 1px solid var(--border);
+            color: white; border-radius: 8px; font-family:'Inter',sans-serif; font-size:13.5px;
+        }
+        .form-control:focus{ outline:none; border-color: var(--primary); }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; color: white; font-weight: 600; font-size:13px; transition: 0.2s; }
+        .btn:hover{ filter: brightness(1.12); transform: translateY(-1px); }
+        .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-2)); }
+        .btn-danger { background: var(--danger); }
+        .btn-success { background: linear-gradient(135deg, var(--success), #0fa66b); }
+        .btn-secondary { background: #475569; }
+
+        /* --- LISTS --- */
+        .item-row {
+            background: var(--surface-2); padding: 12px 14px; margin-bottom: 9px; border-radius: 9px;
+            display: flex; justify-content: space-between; align-items: center; border:1px solid var(--border);
+            font-size: 13.5px;
+        }
+        .item-row b{ color:#fff; }
+        .item-row .actions { display: flex; gap: 8px; align-items: center; }
+        .pagination-controls {
+            display: flex; justify-content: center; align-items: center; gap: 14px;
+            margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);
+        }
+        .page-info { font-size: 13px; color: var(--text-dim); }
+
+        /* --- MODAL --- */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(5,8,15,0.82); backdrop-filter: blur(4px); }
+        .modal-content { background-color: var(--surface); margin: 4% auto; padding: 28px; border: 1px solid var(--border); width: 92%; max-width: 620px; border-radius: 16px; position: relative; }
+        .close-btn { color: var(--text-dim); float: right; font-size: 26px; font-weight: bold; cursor: pointer; transition:.2s; }
+        .close-btn:hover { color: white; }
+
+        .episode-input-group { display: flex; gap: 8px; margin-bottom: 9px; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+        .episode-input-group .form-control { flex: 1; margin: 0; }
+
+        .menu-toggle { display: none; position: fixed; top: 14px; right: 14px; z-index: 200; background: var(--primary); color: white; border: none; padding: 10px 13px; border-radius: 8px; }
+        @media(max-width: 768px) { .menu-toggle { display: block; } }
+
+        .req-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+        .req-table th { text-align: left; padding: 11px; border-bottom: 2px solid var(--border); color: var(--text-dim); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+        .req-table td { text-align: left; padding: 11px; border-bottom: 1px solid var(--border); }
+        .req-table tr:hover td{ background: rgba(59,109,255,.04); }
+
+        .episode-container { max-height: 300px; overflow-y: auto; padding: 10px; border: 1px solid var(--border); border-radius: 9px; margin-bottom: 12px; background: var(--bg-2); }
+
+        .series-control-group { display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; }
+        .series-control-group > div { flex: 1; }
+        .series-control-group label{ font-size:12.5px; color: var(--text-dim); display:block; margin-bottom:5px; }
+
+        .season-nav { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; padding: 12px; background: var(--bg-2); border-radius: 9px; border:1px solid var(--border); }
+        .season-nav select { flex: 1; }
+        .season-nav .season-label { color: var(--primary-2); font-weight: 700; white-space: nowrap; font-size:13px; }
+
+        .season-btn-group { display: flex; gap: 10px; margin-top: 10px; }
+        .season-btn-group button { flex: 1; }
+
+        .star-btn { background: none; border: none; cursor: pointer; font-size: 1.25rem; transition: 0.2s; padding: 0 4px; }
+        .star-active { color: #facc15; }
+        .star-inactive { color: #475569; }
+        .star-btn:hover{ transform: scale(1.15); }
+
+        .search-card{ margin-bottom: 18px; }
+        .search-card .form-control{ font-size:14px; }
+    </style>
 </head>
 
 <body>
+<div id="app-lock-overlay">
+    <div class="lock-box">
+        <i class="fas fa-shield-halved" style="font-size: 42px; margin-bottom: 6px;"></i>
+        <h2>Admin Login</h2>
+        <input type="email" id="admin-email" class="lock-input" placeholder="Email" autocomplete="username" style="letter-spacing:0">
+        <input type="password" id="admin-key-input" class="lock-input" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+        <button class="btn btn-primary" style="width: 100%; padding:13px;" onclick="doLogin()">Login</button>
+    </div>
+</div>
 
-<div class="container">
+<button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
 
-    <div class="click-here">Click Here</div>
+<div class="sidebar">
+    <div class="logo"><i class="fas fa-clapperboard"></i> Admin Panel</div>
+    <div class="nav-item active" onclick="showSection('dashboard')"><i class="fas fa-house"></i> Dashboard</div>
+    <div class="nav-item" onclick="showSection('movies')"><i class="fas fa-video"></i> Movies</div>
+    <div class="nav-item" onclick="showSection('series')"><i class="fas fa-tv"></i> Series</div>
+    <div class="nav-item" onclick="showSection('popular')"><i class="fas fa-star"></i> Popular</div>
+    <div class="nav-item" onclick="showSection('categories')"><i class="fas fa-tags"></i> Categories</div>
+    <div class="nav-item" onclick="showSection('requests')"><i class="fas fa-envelope"></i> User Requests</div>
+    <div class="nav-item" onclick="showSection('messages')"><i class="fas fa-comment-dots"></i> Admin Messages</div>
+    <div class="nav-item" onclick="exportBackup()"><i class="fas fa-download"></i> Backup (JSON)</div>
+    <div class="nav-item" onclick="doLogout()"><i class="fas fa-right-from-bracket"></i> Logout</div>
+</div>
 
-    <!-- Replace # with your link -->
-    <a href="https://aviatorpredictortoolmod.blogspot.com/2026/09/aviator-hacking-tool-latest-update.html" class="aviator-link">
-        Aviator Hacking Tool Free Apk
-    </a>
+<div class="main-content" id="main-admin-panel" style="display: none;">
 
-    <br>
-    <br>
-    <br>
-    <br>
-    <br>
-    <br>
-    <br>
-    <br>
-    <br>
-    
+    <div class="card search-card">
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="admin-search-input" class="form-control" placeholder="Search by title..." onkeyup="filterAllLists()">
+            <button class="btn btn-primary"><i class="fas fa-search"></i></button>
+        </div>
+    </div>
 
-    <!-- Replace # with your video link -->
-    <a href="https://www.profitableratecpmnetwork.com/yh1m172z?key=3b63c17ad237744b9e076a3387541d50" class="video-link">
-       Boy Data Free
-    </a>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-video"></i></div>
+            <div><div class="stat-val" id="count-movies">0</div><p>Total Movies</p></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(245,158,11,.12); color:#fbbf24;"><i class="fas fa-tv"></i></div>
+            <div><div class="stat-val" id="count-series">0</div><p>Total Series</p></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(239,68,68,.12); color:#f87171;"><i class="fas fa-envelope"></i></div>
+            <div><div class="stat-val" id="count-requests">0</div><p>Pending Requests</p></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(22,199,132,.12); color:#16c784;"><i class="fas fa-comment-dots"></i></div>
+            <div><div class="stat-val" id="count-messages" style="color:#16c784;">0</div><p>Pending Messages</p></div>
+        </div>
+    </div>
+
+    <section id="dashboard" class="content-section active">
+        <div class="card">
+            <h2 style="font-size:18px; margin-bottom:8px;">Welcome back, Admin 👋</h2>
+            <p style="color:var(--text-dim); font-size:13.5px;">Select a section from the sidebar to manage movies, series, categories, and incoming requests.</p>
+        </div>
+    </section>
+
+    <section id="movies" class="content-section">
+        <div class="card">
+            <h3><i class="fas fa-plus" style="color:var(--success); margin-right:6px;"></i>Add Movie</h3>
+            <form onsubmit="addMovie(event)">
+                <input type="text" id="m_title" class="form-control" placeholder="Title" required style="margin-bottom:10px;">
+                <select id="m_cat" class="form-control" style="margin-bottom:10px;"></select>
+                <input type="text" id="m_img" class="form-control" placeholder="Image URL" required style="margin-bottom:10px;">
+                <input type="text" id="m_play" class="form-control" placeholder="Play URL" required style="margin-bottom:10px;">
+                <input type="text" id="m_down" class="form-control" placeholder="Other Download Link (Optional)" style="margin-bottom:10px;">
+                <input type="number" id="m_year" class="form-control" placeholder="Year" style="margin-bottom:10px;">
+                <input type="text" id="m_genres" class="form-control" placeholder="Genres" style="margin-bottom:10px;">
+                <input type="number" id="m_rating" class="form-control" placeholder="Rating (0-10)" step="0.1" style="margin-bottom:10px;">
+                <button class="btn btn-success">Add Movie</button>
+            </form>
+        </div>
+        <div class="card">
+            <h3><i class="fas fa-list" style="color:var(--primary-2); margin-right:6px;"></i>Movie List</h3>
+            <div id="movie-list"></div>
+            <div id="movie-pagination" class="pagination-controls"></div>
+        </div>
+    </section>
+
+    <section id="series" class="content-section">
+        <div class="card">
+            <h3><i class="fas fa-plus" style="color:var(--success); margin-right:6px;"></i>Add Series</h3>
+            <form id="addSeriesForm" onsubmit="addSeries(event)">
+                <div class="form-group">
+                    <input type="text" id="s_title" class="form-control" placeholder="Title" required>
+                </div>
+                <div class="form-group">
+                    <select id="s_cat" class="form-control" required></select>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="s_img" class="form-control" placeholder="Image URL" required>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="s_genres" class="form-control" placeholder="Genres (e.g., Action, Sci-Fi)" required>
+                </div>
+                <div class="form-group" style="display: flex; gap: 10px;">
+                    <input type="number" id="s_rating" class="form-control" placeholder="Rating (0-10)" step="0.1" min="0.0" max="10.0" style="flex: 1;">
+                    <input type="number" id="s_year" class="form-control" placeholder="Year (e.g., 2024)" min="1900" max="2100" required style="flex: 1;">
+                </div>
+                <div class="form-group">
+                    <input type="text" id="s_down" class="form-control" placeholder="Other Download Link (Overall Series)" style="margin-bottom:10px;">
+                </div>
+                <div class="series-control-group">
+                    <div>
+                        <label>Total Seasons</label>
+                        <input type="number" id="s_seasons" class="form-control" placeholder="Total Seasons" value="1" min="1" required
+                               onchange="updateSeasonDropdown()">
+                    </div>
+                    <div>
+                        <label style="color:var(--primary-2); font-weight:700;">Select Season to Edit</label>
+                        <select id="s_season_selector" class="form-control" onchange="handleSeasonChange()" style="border: 1px solid var(--primary);"></select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="season-nav">
+                        <span class="season-label">Currently Editing:</span>
+                        <select id="s_season_selector2" class="form-control" onchange="handleSeasonChange2()"></select>
+                    </div>
+                    <label style="color:var(--text-dim); font-size:13px; display: block; margin-bottom: 6px;">Episodes for Selected Season:</label>
+                    <div id="episode-entry-container" class="episode-container"></div>
+                    <div class="season-btn-group">
+                        <button type="button" class="btn btn-secondary" onclick="addEpisodeInput()">
+                            <i class="fas fa-plus"></i> Add Episode
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="clearCurrentSeason()">
+                            <i class="fas fa-trash"></i> Clear This Season
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="bulkAddEpisodes()">
+                            <i class="fas fa-list"></i> Bulk Links
+                        </button>
+                    </div>
+                </div>
+                <button class="btn btn-success" style="margin-top: 10px;">Save Series</button>
+            </form>
+        </div>
+        <div class="card">
+            <h3><i class="fas fa-list" style="color:var(--primary-2); margin-right:6px;"></i>Series List</h3>
+            <div id="series-list"></div>
+            <div id="series-pagination" class="pagination-controls"></div>
+        </div>
+    </section>
+
+    <section id="popular" class="content-section">
+        <div class="card">
+            <h3><i class="fas fa-star" style="color:#facc15; margin-right:6px;"></i>Popular List</h3>
+            <div id="popular-list"></div>
+            <div id="popular-pagination" class="pagination-controls"></div>
+        </div>
+    </section>
+
+    <section id="categories" class="content-section">
+        <div class="card">
+            <h3><i class="fas fa-plus" style="color:var(--success); margin-right:6px;"></i>Add Category</h3>
+            <div style="display:flex; gap:10px;">
+                <input id="c_name" class="form-control" placeholder="Name">
+                <button onclick="addCategory()" class="btn btn-success">Add</button>
+            </div>
+        </div>
+        <div class="card" id="cat-list"></div>
+    </section>
+
+    <section id="requests" class="content-section">
+        <div class="card">
+            <h3><i class="fas fa-envelope" style="color:#f87171; margin-right:6px;"></i>User Requests</h3>
+            <table class="req-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Name</th>
+                        <th>Time</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="req-list"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="messages" class="content-section">
+        <div class="card">
+            <h3><i class="fas fa-comment-dots" style="color:#16c784; margin-right:6px;"></i>Admin Messages (From App)</h3>
+            <table class="req-table">
+                <thead>
+                    <tr>
+                        <th>Message Content</th>
+                        <th>Time Received</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="msg-list"></tbody>
+            </table>
+        </div>
+    </section>
 
 </div>
 
+<div id="edit-modal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeEditModal()">&times;</span>
+        <h2 style="margin-bottom:18px; font-size:18px;">Edit Content Item</h2>
+        <form id="edit-form" onsubmit="updateItem(event)">
+            <input type="hidden" id="edit_key">
+            <input type="hidden" id="edit_db_path">
+            <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);">Title</p>
+            <input type="text" id="edit_title" class="form-control" required style="margin-bottom:10px;">
+            <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);">Category</p>
+            <select id="edit_cat" class="form-control" style="margin-bottom:10px;"></select>
+            <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);">Image URL</p>
+            <input type="text" id="edit_img" class="form-control" required style="margin-bottom:10px;">
+            <div id="edit_metadata_fields">
+                <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);">Year</p>
+                <input type="number" id="edit_year" class="form-control" style="margin-bottom:10px;">
+                <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);">Genres</p>
+                <input type="text" id="edit_genres" class="form-control" style="margin-bottom:10px;">
+                <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);">Rating (0-10)</p>
+                <input type="number" id="edit_rating" class="form-control" step="0.1" style="margin-bottom:10px;">
+            </div>
+            <div id="edit_movie_fields">
+                <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);" id="edit_play_label">Play URL</p>
+                <input type="text" id="edit_play" class="form-control" style="margin-bottom:10px;">
+            </div>
+            <div id="edit_series_fields" style="display:none; margin-top: 15px;">
+                <div class="series-control-group">
+                    <div>
+                        <label>Total Seasons</label>
+                        <input type="number" id="edit_seasons_count" class="form-control" min="1" value="1" onchange="updateEditSeasonCount()">
+                    </div>
+                    <div>
+                        <label style="color:var(--primary-2); font-weight:700;">Select Season to Edit</label>
+                        <select id="edit_current_season" class="form-control" onchange="handleEditSeasonChange()"></select>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <div class="season-nav">
+                        <span class="season-label">Currently Editing:</span>
+                        <select id="edit_current_season2" class="form-control" onchange="handleEditSeasonChange2()"></select>
+                    </div>
+                    <label style="color:var(--text-dim); font-size:13px;">Episodes for Selected Season:</label>
+                    <div id="editEpisodesContainer" class="episode-container"></div>
+                    <div class="season-btn-group">
+                        <button type="button" class="btn btn-secondary" onclick="addEditEpisodeInput()">
+                            <i class="fas fa-plus"></i> Add Episode
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="clearCurrentEditSeason()">
+                            <i class="fas fa-trash"></i> Clear This Season
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);">Download Link</p>
+            <input type="text" id="edit_down" class="form-control" style="margin-bottom:20px;">
+            <button class="btn btn-success" type="submit" style="width:100%; padding:12px;">Save Changes</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAzMuU6FOaYUnhFCfwbhOxDbfQiWG_LGQM",
+      authDomain: "pk-movies-a6fbc.firebaseapp.com",
+      databaseURL: "https://pk-movies-a6fbc-default-rtdb.firebaseio.com",
+      projectId: "pk-movies-a6fbc",
+      storageBucket: "pk-movies-a6fbc.firebasestorage.app",
+      messagingSenderId: "887789225438",
+      appId: "1:887789225438:web:db267440fcc5703881494f"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const auth = firebase.auth();
+
+    
+    function toast(msg, err) {
+        const t = document.createElement('div'); t.textContent = msg;
+        t.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:20000;padding:11px 18px;border-radius:10px;font-size:13.5px;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.5);background:' + (err ? '#ef4444' : '#16c784');
+        document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+    }
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function validateNew(title, urls, list) {
+        for (const u of urls) if (u && !/^https?:\/\//i.test(u.trim())) { toast('Links must start with http:// or https://', true); return false; }
+        if (list.some(x => (x.title || '').trim().toLowerCase() === title.trim().toLowerCase()) && !confirm('Same title already exists. Add anyway?')) return false;
+        return true;
+    }
+    function exportBackup() {
+        Promise.all(['movies', 'popular_movies', 'categories'].map(n => db.ref(n).once('value').then(s => [n, s.val()])))
+        .then(pairs => {
+            const b = new Blob([JSON.stringify(Object.fromEntries(pairs), null, 2)], { type: 'application/json' });
+            const l = document.createElement('a'); l.href = URL.createObjectURL(b);
+            l.download = 'pk-movies-backup-' + new Date().toISOString().slice(0, 10) + '.json'; l.click();
+            setTimeout(() => URL.revokeObjectURL(l.href), 5000);
+        }).catch(e => toast(e.message, true));
+    }
+    function bulkAddEpisodes() {
+        const txt = prompt('Paste episode links, one per line:'); if (!txt) return;
+        const c = document.getElementById('episode-entry-container');
+        c.querySelectorAll('.episode-input-group').forEach(g => { if (!g.querySelector('.ep-link').value.trim()) g.remove(); });
+        txt.split('\n').map(x => x.trim()).filter(Boolean).forEach(u => addEpisodeInput('', u));
+    }
+
+    // Global Variables
+    const ITEMS_PER_PAGE = 15;
+    let allMoviesData = [];
+    let allSeriesData = [];
+    let allPopularData = [];
+    let currentPage = { movie: 1, series: 1, popular: 1 };
+    let categoryNames = [];
+    let seriesDraftEpisodes = { 'S1': {} };
+    let currentAddSeason = 'S1';
+    let currentSeriesEpisodesCache = {};
+    let currentEditSeason = 'S1';
+
+    function doLogin() {
+        const em = document.getElementById('admin-email').value.trim(), pw = document.getElementById('admin-key-input').value;
+        if (!em || !pw) return toast('Enter email and password', true);
+        auth.signInWithEmailAndPassword(em, pw).catch(err => toast('Login failed: ' + err.message, true));
+    }
+    function doLogout() { auth.signOut().then(() => location.reload()); }
+    let panelStarted = false;
+    auth.onAuthStateChanged(user => {
+        document.getElementById('app-lock-overlay').style.display = user ? 'none' : 'flex';
+        document.getElementById('main-admin-panel').style.display = user ? 'block' : 'none';
+        if (user && !panelStarted) { panelStarted = true; loadCategories(); loadContent(); updateSeasonDropdown(); }
+    });
+
+    window.onload = () => { console.log("Waiting for Admin Key..."); };
+
+    function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('active'); }
+
+    function showSection(id) {
+        document.querySelectorAll('.content-section').forEach(el => el.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        const navItem = document.querySelector(`.nav-item[onclick*="${id}"]`);
+        if(navItem) navItem.classList.add('active');
+        if(window.innerWidth < 768) document.querySelector('.sidebar').classList.remove('active');
+    }
+
+    function renderPaginatedList(dataArray, listId, pageKey, paginationId, deletePathPrefix) {
+        const listContainer = document.getElementById(listId);
+        const paginationContainer = document.getElementById(paginationId);
+        if(!listContainer) return;
+        listContainer.innerHTML = '';
+        paginationContainer.innerHTML = '';
+
+        const totalItems = dataArray.length;
+        const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+        if (currentPage[pageKey] > totalPages && totalPages > 0) currentPage[pageKey] = totalPages;
+
+        const startIndex = (currentPage[pageKey] - 1) * ITEMS_PER_PAGE;
+        const itemsToShow = dataArray.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+        itemsToShow.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'item-row';
+            const basePath = item.dbPath || deletePathPrefix;
+            const itemType = (item.type === 'series' || item.episodes) ? 'series' : 'movie';
+
+            let starBtnHtml = '';
+            if (listId !== 'popular-list') {
+                const isPop = allPopularData.some(p => p.originalKey === item.key);
+                const starClass = isPop ? 'star-active' : 'star-inactive';
+                starBtnHtml = `
+                    <button class="star-btn ${starClass}" onclick="togglePopular('${item.key}', '${basePath}')">
+                        <i class="fas fa-star"></i>
+                    </button>`;
+            }
+
+            div.innerHTML = `
+                <div><b>${esc(item.title)}</b> <span style="font-size:12px; color:var(--text-dim)">(${esc(item.category || itemType)})</span></div>
+                <div class="actions">
+                    ${starBtnHtml}
+                    <button class="btn btn-primary" style="padding:6px 12px;" onclick="openEditModal('${item.key}', '${basePath}', '${itemType}')">Edit</button>
+                    <button class="btn btn-danger" style="padding:6px 12px;" onclick="deleteItem('${basePath}/${item.key}')">Delete</button>
+                </div>
+            `;
+            listContainer.appendChild(div);
+        });
+
+        if (totalItems === 0) listContainer.innerHTML = '<p style="text-align:center; color:var(--text-dim); padding:20px;">No data found.</p>';
+
+        if (totalPages > 1) {
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'btn btn-secondary'; prevBtn.innerHTML = 'Prev';
+            prevBtn.disabled = currentPage[pageKey] === 1;
+            prevBtn.onclick = () => { currentPage[pageKey]--; renderPaginatedList(dataArray, listId, pageKey, paginationId, deletePathPrefix); };
+
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'btn btn-secondary'; nextBtn.innerHTML = 'Next';
+            nextBtn.disabled = currentPage[pageKey] === totalPages;
+            nextBtn.onclick = () => { currentPage[pageKey]++; renderPaginatedList(dataArray, listId, pageKey, paginationId, deletePathPrefix); };
+
+            paginationContainer.append(prevBtn, Object.assign(document.createElement('span'), {className:'page-info', innerText:`Page ${currentPage[pageKey]} of ${totalPages}`}), nextBtn);
+        }
+    }
+
+    function togglePopular(key, dbPath) {
+        const popularItem = allPopularData.find(p => p.originalKey === key);
+        if (popularItem) {
+            db.ref(`popular_movies/${popularItem.key}`).remove();
+        } else {
+            db.ref(`movies/${key}`).once('value', snap => {
+                const data = snap.val();
+                if (data) {
+                    db.ref('popular_movies').push({ ...data, originalKey: key, isPopular: true });
+                }
+            });
+        }
+    }
+
+    function closeEditModal() { document.getElementById('edit-modal').style.display='none'; currentSeriesEpisodesCache = {}; currentEditSeason = 'S1'; document.getElementById('edit-form').reset(); }
+
+    function openEditModal(itemKey, dbPath, itemType) {
+        document.getElementById('edit_key').value = itemKey;
+        document.getElementById('edit_db_path').value = dbPath;
+        document.getElementById('edit-modal').style.display = 'block';
+        const editCatSelect = document.getElementById('edit_cat');
+        editCatSelect.innerHTML = '<option value="">Select Category</option>';
+        categoryNames.forEach(n => editCatSelect.add(new Option(n, n)));
+
+        db.ref(`${dbPath}/${itemKey}`).once('value', snap => {
+            const item = snap.val(); if (!item) return;
+            document.getElementById('edit_title').value = item.title || '';
+            document.getElementById('edit_img').value = item.img || '';
+            document.getElementById('edit_cat').value = item.category || '';
+            document.getElementById('edit_down').value = item.otherDownloadLink || '';
+            document.getElementById('edit_genres').value = item.genres || '';
+            document.getElementById('edit_rating').value = item.rating || '';
+            document.getElementById('edit_year').value = item.year || '';
+            const isSeries = (itemType === 'series' || item.type === 'series' || item.episodes);
+            if (!isSeries) {
+                document.getElementById('edit_movie_fields').style.display = 'block';
+                document.getElementById('edit_series_fields').style.display = 'none';
+                document.getElementById('edit_play').value = item.play || '';
+            } else {
+                document.getElementById('edit_movie_fields').style.display = 'none';
+                document.getElementById('edit_series_fields').style.display = 'block';
+                currentSeriesEpisodesCache = item.episodes || {};
+                const count = item.seasons || 1;
+                document.getElementById('edit_seasons_count').value = count;
+                updateEditSeasonDropdown(count);
+                loadEditEpisodes();
+            }
+        });
+    }
+
+
+
+    function updateEditSeasonDropdown(max) {
+        const s1 = document.getElementById('edit_current_season'), s2 = document.getElementById('edit_current_season2');
+        s1.innerHTML = ''; s2.innerHTML = '';
+        for (let i = 1; i <= max; i++) { s1.add(new Option(`Season ${i}`, `S${i}`)); s2.add(new Option(`Season ${i}`, `S${i}`)); }
+        s1.value = currentEditSeason; s2.value = currentEditSeason;
+    }
+
+    function handleEditSeasonChange() { currentEditSeason = document.getElementById('edit_current_season').value; document.getElementById('edit_current_season2').value = currentEditSeason; loadEditEpisodes(); }
+    function handleEditSeasonChange2() { currentEditSeason = document.getElementById('edit_current_season2').value; document.getElementById('edit_current_season').value = currentEditSeason; loadEditEpisodes(); }
+
+    function loadEditEpisodes() {
+        const container = document.getElementById('editEpisodesContainer');
+        container.innerHTML = '';
+        const data = currentSeriesEpisodesCache[currentEditSeason] || {};
+        const sortedKeys = Object.keys(data).sort((a, b) => parseInt(a.replace('ep_', '')) - parseInt(b.replace('ep_', '')));
+        if (sortedKeys.length > 0) sortedKeys.forEach(k => addEditEpisodeInput(data[k].title, data[k].link));
+        else addEditEpisodeInput();
+    }
+
+    function buildEpRow(containerId, t, l, p) {
+        const container = document.getElementById(containerId);
+        if (!t) t = 'Episode ' + (container.querySelectorAll('.episode-input-group').length + 1);
+        const div = document.createElement('div'); div.className = 'episode-input-group';
+        const a = document.createElement('input'); a.type = 'text'; a.placeholder = 'Title'; a.value = t; a.className = 'form-control ' + p + 'ep-title'; a.required = true;
+        const b = document.createElement('input'); b.type = 'text'; b.placeholder = 'Link'; b.value = l; b.className = 'form-control ' + p + 'ep-link'; b.required = true;
+        const x = document.createElement('button'); x.type = 'button'; x.className = 'btn btn-danger'; x.textContent = 'X'; x.onclick = () => div.remove();
+        div.append(a, b, x); container.appendChild(div);
+    }
+    function addEditEpisodeInput(t = '', l = '') { buildEpRow('editEpisodesContainer', t, l, 'edit-'); }
+
+
+    function filterAllLists() {
+
+        currentPage.movie = 1;
+        currentPage.series = 1;
+        currentPage.popular = 1;
+
+        const query = document.getElementById('admin-search-input').value.toLowerCase();
+
+        const filteredMovies = allMoviesData.filter(m =>
+            m.title.toLowerCase().includes(query)
+        );
+        renderPaginatedList(filteredMovies, 'movie-list', 'movie', 'movie-pagination', 'movies');
+
+        const filteredSeries = allSeriesData.filter(s =>
+            s.title.toLowerCase().includes(query)
+        );
+        renderPaginatedList(filteredSeries, 'series-list', 'series', 'series-pagination', 'movies');
+
+        const filteredPopular = allPopularData.filter(p =>
+            p.title.toLowerCase().includes(query)
+        );
+        renderPaginatedList(filteredPopular, 'popular-list', 'popular', 'popular-pagination', 'popular_movies');
+    }
+
+
+    function updateItem(e) {
+        e.preventDefault();
+        const eps = {};
+        document.querySelectorAll('.edit-ep-title').forEach((el, i) => {
+            const l = document.querySelectorAll('.edit-ep-link')[i].value;
+            if(el.value && l) eps[`ep_${i+1}`] = { title: el.value, link: l };
+        });
+        currentSeriesEpisodesCache[currentEditSeason] = eps;
+        const key = document.getElementById('edit_key').value, path = document.getElementById('edit_db_path').value, isS = document.getElementById('edit_series_fields').style.display !== 'none';
+        const data = { title: document.getElementById('edit_title').value, category: document.getElementById('edit_cat').value, img: document.getElementById('edit_img').value, otherDownloadLink: document.getElementById('edit_down').value, genres: document.getElementById('edit_genres').value, year: document.getElementById('edit_year').value, rating: parseFloat(document.getElementById('edit_rating').value) || null };
+        if (isS) { data.episodes = currentSeriesEpisodesCache; data.seasons = parseInt(document.getElementById('edit_seasons_count').value); } else { data.play = document.getElementById('edit_play').value; }
+        db.ref(`${path}/${key}`).update(data).then(() => { const pc = allPopularData.find(p => p.originalKey === key); if (pc && path === 'movies') db.ref('popular_movies/' + pc.key).update(data); toast('Updated!'); closeEditModal(); });
+    }
+
+    function updateSeasonDropdown() {
+        const count = parseInt(document.getElementById('s_seasons').value) || 1, s1 = document.getElementById('s_season_selector'), s2 = document.getElementById('s_season_selector2');
+        s1.innerHTML = ''; s2.innerHTML = '';
+        for (let i = 1; i <= count; i++) { const k = `S${i}`; s1.add(new Option(`Season ${i}`, k)); s2.add(new Option(`Season ${i}`, k)); if (!seriesDraftEpisodes[k]) seriesDraftEpisodes[k] = {}; }
+        loadAddEpisodes();
+    }
+
+    function handleSeasonChange() { saveCurrentAddEpisodes(); currentAddSeason = document.getElementById('s_season_selector').value; document.getElementById('s_season_selector2').value = currentAddSeason; loadAddEpisodes(); }
+    function handleSeasonChange2() { saveCurrentAddEpisodes(); currentAddSeason = document.getElementById('s_season_selector2').value; document.getElementById('s_season_selector').value = currentAddSeason; loadAddEpisodes(); }
+    function saveCurrentAddEpisodes() { const eps = {}; document.querySelectorAll('.ep-title').forEach((el, i) => { const l = document.querySelectorAll('.ep-link')[i].value; if(el.value && l) eps[`ep_${i+1}`] = { title: el.value, link: l }; }); seriesDraftEpisodes[currentAddSeason] = eps; }
+    function loadAddEpisodes() { const container = document.getElementById('episode-entry-container'); if(!container) return; container.innerHTML = ''; const data = seriesDraftEpisodes[currentAddSeason] || {}; const sortedKeys = Object.keys(data).sort((a, b) => parseInt(a.replace('ep_', '')) - parseInt(b.replace('ep_', ''))); if(sortedKeys.length > 0) sortedKeys.forEach(k => addEpisodeInput(data[k].title, data[k].link)); else addEpisodeInput(); }
+    function addEpisodeInput(t = '', l = '') { buildEpRow('episode-entry-container', t, l, ''); }
+    function addSeries(e) { e.preventDefault(); saveCurrentAddEpisodes(); if (!validateNew(document.getElementById('s_title').value, [document.getElementById('s_img').value], allSeriesData)) return; db.ref('movies').push({ type: 'series', addedAt: firebase.database.ServerValue.TIMESTAMP, title: document.getElementById('s_title').value, category: document.getElementById('s_cat').value, img: document.getElementById('s_img').value, genres: document.getElementById('s_genres').value, rating: parseFloat(document.getElementById('s_rating').value) || null, year: document.getElementById('s_year').value, seasons: parseInt(document.getElementById('s_seasons').value), episodes: seriesDraftEpisodes, otherDownloadLink: document.getElementById('s_down').value }).then(() => { e.target.reset(); seriesDraftEpisodes = { 'S1': {} }; currentAddSeason = 'S1'; updateSeasonDropdown(); toast('Series Added!'); }); }
+
+    function loadCategories() {
+        db.ref('categories').on('value', snap => {
+            const list = document.getElementById('cat-list'), drops = [document.getElementById('m_cat'), document.getElementById('s_cat'), document.getElementById('edit_cat')];
+            if(!list) return;
+            list.innerHTML = ''; categoryNames = []; drops.forEach(d => { if(d) d.innerHTML = '<option value="">Select Category</option>'; });
+            snap.forEach(c => { const n = c.val(); categoryNames.push(n); const div = document.createElement('div'); div.className = 'item-row'; div.innerHTML = `<span>${esc(n)}</span> <button class="btn btn-danger" style="padding:6px 12px;" onclick="deleteItem('categories/${c.key}')">X</button>`; list.appendChild(div); drops.forEach(d => { if(d) d.add(new Option(n, n)); }); });
+        });
+    }
+    function addCategory() { const n = document.getElementById('c_name').value.trim(); if(n) db.ref('categories').push(n).then(() => document.getElementById('c_name').value = ''); }
+    function addMovie(e) { e.preventDefault(); if (!validateNew(document.getElementById('m_title').value, [document.getElementById('m_img').value, document.getElementById('m_play').value], allMoviesData)) return; db.ref('movies').push({ type: 'movie', addedAt: firebase.database.ServerValue.TIMESTAMP, title: document.getElementById('m_title').value, category: document.getElementById('m_cat').value, img: document.getElementById('m_img').value, play: document.getElementById('m_play').value, otherDownloadLink: document.getElementById('m_down').value, year: document.getElementById('m_year').value, genres: document.getElementById('m_genres').value, rating: parseFloat(document.getElementById('m_rating').value) || null }).then(() => { e.target.reset(); toast('Movie Added'); }); }
+
+    function loadContent() {
+        db.ref('movies').on('value', snap => {
+            allMoviesData = []; allSeriesData = [];
+            snap.forEach(c => { const v = c.val(); v.key = c.key; v.dbPath = 'movies'; if(v.type === 'series' || v.episodes) allSeriesData.push(v); else allMoviesData.push(v); });
+            allMoviesData.reverse(); allSeriesData.reverse();
+            document.getElementById('count-movies').innerText = allMoviesData.length; document.getElementById('count-series').innerText = allSeriesData.length;
+            renderPaginatedList(allMoviesData, 'movie-list', 'movie', 'movie-pagination', 'movies');
+            renderPaginatedList(allSeriesData, 'series-list', 'series', 'series-pagination', 'movies');
+        });
+        db.ref('popular_movies').on('value', snap => {
+            allPopularData = []; snap.forEach(c => { const v = c.val(); v.key = c.key; v.dbPath = 'popular_movies'; allPopularData.push(v); });
+            allPopularData.reverse(); renderPaginatedList(allPopularData, 'popular-list', 'popular', 'popular-pagination', 'popular_movies');
+        });
+        db.ref('requests').on('value', snap => {
+            const list = document.getElementById('req-list'); if(!list) return; list.innerHTML = ''; let count = 0;
+            snap.forEach(c => { count++; const v = c.val(); const tr = document.createElement('tr'); const time = v.timestamp ? new Date(v.timestamp).toLocaleString() : 'N/A';
+            tr.innerHTML = `<td>${esc(v.type)}</td><td>${esc(v.name)}</td><td>${time}</td><td><button class="btn btn-danger" style="padding:6px 12px;" onclick="deleteItem('requests/${c.key}')">Done</button></td>`;
+            list.appendChild(tr); });
+            document.getElementById('count-requests').innerText = count;
+        });
+
+        db.ref('messages').on('value', snap => {
+            const list = document.getElementById('msg-list'); if(!list) return; list.innerHTML = '';
+            let msgCount = 0;
+            snap.forEach(c => {
+                msgCount++;
+                const v = c.val();
+                const tr = document.createElement('tr');
+                const time = v.time ? new Date(v.time).toLocaleString() : 'N/A';
+                tr.innerHTML = `
+                    <td style="max-width:300px; word-wrap:break-word;">${esc(v.message)}</td>
+                    <td>${time}</td>
+                    <td><button class="btn btn-danger" style="padding:6px 12px;" onclick="deleteItem('messages/${c.key}')">Delete</button></td>
+                `;
+                list.appendChild(tr);
+            });
+            document.getElementById('count-messages').innerText = msgCount;
+        });
+    }
+
+    function deleteItem(p) {
+        if (!confirm("Delete this?")) return;
+        db.ref(p).remove();
+        const parts = p.split('/');
+        if (parts[0] === 'movies' && parts.length === 2) { const pc = allPopularData.find(x => x.originalKey === parts[1]); if (pc) db.ref('popular_movies/' + pc.key).remove(); }
+    }
+    function clearCurrentSeason() { if(confirm("Clear episodes for this season?")) { seriesDraftEpisodes[currentAddSeason] = {}; loadAddEpisodes(); } }
+    function clearCurrentEditSeason() { if(confirm("Clear episodes for this edit season?")) { currentSeriesEpisodesCache[currentEditSeason] = {}; loadEditEpisodes(); } }
+    function updateEditSeasonCount() { const count = parseInt(document.getElementById('edit_seasons_count').value) || 1; updateEditSeasonDropdown(count); }
+
+</script>
 </body>
 </html>
