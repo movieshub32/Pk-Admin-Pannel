@@ -258,10 +258,9 @@
                 <input type="text" id="m_title" class="form-control" placeholder="Title" required style="margin-bottom:10px;">
                 <select id="m_cat" class="form-control" style="margin-bottom:10px;"></select>
                 <input type="text" id="m_img" class="form-control" placeholder="Image URL" required style="margin-bottom:10px;">
-                <input type="text" id="m_play" class="form-control" placeholder="Play URL" required style="margin-bottom:10px;">
+                <input type="text" id="m_play" class="form-control" placeholder="Play URL (mp4, m3u8, Drive, YouTube, any embed link or iframe code)" required style="margin-bottom:10px;">
                 <input type="text" id="m_down" class="form-control" placeholder="Other Download Link (Optional)" style="margin-bottom:10px;">
                 <input type="number" id="m_year" class="form-control" placeholder="Year" style="margin-bottom:10px;">
-                <input type="text" id="m_genres" class="form-control" placeholder="Genres" style="margin-bottom:10px;">
                 <input type="number" id="m_rating" class="form-control" placeholder="Rating (0-10)" step="0.1" style="margin-bottom:10px;">
                 <button class="btn btn-success">Add Movie</button>
             </form>
@@ -285,9 +284,6 @@
                 </div>
                 <div class="form-group">
                     <input type="text" id="s_img" class="form-control" placeholder="Image URL" required>
-                </div>
-                <div class="form-group">
-                    <input type="text" id="s_genres" class="form-control" placeholder="Genres (e.g., Action, Sci-Fi)" required>
                 </div>
                 <div class="form-group" style="display: flex; gap: 10px;">
                     <input type="number" id="s_rating" class="form-control" placeholder="Rating (0-10)" step="0.1" min="0.0" max="10.0" style="flex: 1;">
@@ -406,8 +402,6 @@
             <div id="edit_metadata_fields">
                 <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);">Year</p>
                 <input type="number" id="edit_year" class="form-control" style="margin-bottom:10px;">
-                <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);">Genres</p>
-                <input type="text" id="edit_genres" class="form-control" style="margin-bottom:10px;">
                 <p style="margin-top:10px; margin-bottom: 6px; font-size:13px; color:var(--text-dim);">Rating (0-10)</p>
                 <input type="number" id="edit_rating" class="form-control" step="0.1" style="margin-bottom:10px;">
             </div>
@@ -469,6 +463,18 @@
         const t = document.createElement('div'); t.textContent = msg;
         t.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:20000;padding:11px 18px;border-radius:10px;font-size:13.5px;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.5);background:' + (err ? '#ef4444' : '#16c784');
         document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+    }
+    const tsOf = v => v.updatedAt || v.addedAt || 0;
+    const byNewest = (x, y) => (tsOf(y) - tsOf(x)) || (x.key < y.key ? 1 : (x.key > y.key ? -1 : 0));
+    const popOrder = (x, y) => ((y.updatedAt || 0) - (x.updatedAt || 0)) || (x.key < y.key ? 1 : (x.key > y.key ? -1 : 0));
+    function cleanLink(v) {
+        let u = String(v || '').trim();
+        const m = u.match(/<(?:iframe|source|video|embed)[^>]*?\ssrc\s*=\s*["']([^"']+)["']/i);
+        if (m) u = m[1].trim();
+        u = u.replace(/&amp;/g, '&');
+        if (u.indexOf('//') === 0) u = 'https:' + u;
+        else if (u && !/^[a-z][a-z0-9+.-]*:/i.test(u) && /^[\w-]+(\.[\w-]+)+(\/|$)/.test(u)) u = 'https://' + u;
+        return u;
     }
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     function validateNew(title, urls, list) {
@@ -596,7 +602,7 @@
             db.ref(`movies/${key}`).once('value', snap => {
                 const data = snap.val();
                 if (data) {
-                    db.ref('popular_movies').push({ ...data, originalKey: key, isPopular: true });
+                    db.ref('popular_movies').push({ ...data, originalKey: key, isPopular: true, updatedAt: firebase.database.ServerValue.TIMESTAMP });
                 }
             });
         }
@@ -618,7 +624,6 @@
             document.getElementById('edit_img').value = item.img || '';
             document.getElementById('edit_cat').value = item.category || '';
             document.getElementById('edit_down').value = item.otherDownloadLink || '';
-            document.getElementById('edit_genres').value = item.genres || '';
             document.getElementById('edit_rating').value = item.rating || '';
             document.getElementById('edit_year').value = item.year || '';
             const isSeries = (itemType === 'series' || item.type === 'series' || item.episodes);
@@ -701,13 +706,25 @@
         const eps = {};
         document.querySelectorAll('.edit-ep-title').forEach((el, i) => {
             const l = document.querySelectorAll('.edit-ep-link')[i].value;
-            if(el.value && l) eps[`ep_${i+1}`] = { title: el.value, link: l };
+            if(el.value && l) eps[`ep_${i+1}`] = { title: el.value, link: cleanLink(l) };
         });
         currentSeriesEpisodesCache[currentEditSeason] = eps;
         const key = document.getElementById('edit_key').value, path = document.getElementById('edit_db_path').value, isS = document.getElementById('edit_series_fields').style.display !== 'none';
-        const data = { title: document.getElementById('edit_title').value, category: document.getElementById('edit_cat').value, img: document.getElementById('edit_img').value, otherDownloadLink: document.getElementById('edit_down').value, genres: document.getElementById('edit_genres').value, year: document.getElementById('edit_year').value, rating: parseFloat(document.getElementById('edit_rating').value) || null };
-        if (isS) { data.episodes = currentSeriesEpisodesCache; data.seasons = parseInt(document.getElementById('edit_seasons_count').value); } else { data.play = document.getElementById('edit_play').value; }
-        db.ref(`${path}/${key}`).update(data).then(() => { const pc = allPopularData.find(p => p.originalKey === key); if (pc && path === 'movies') db.ref('popular_movies/' + pc.key).update(data); toast('Updated!'); closeEditModal(); });
+        const data = { updatedAt: firebase.database.ServerValue.TIMESTAMP, title: document.getElementById('edit_title').value, category: document.getElementById('edit_cat').value, img: document.getElementById('edit_img').value, otherDownloadLink: document.getElementById('edit_down').value, year: document.getElementById('edit_year').value, rating: parseFloat(document.getElementById('edit_rating').value) || null };
+        if (isS) { data.episodes = currentSeriesEpisodesCache; data.seasons = parseInt(document.getElementById('edit_seasons_count').value); } else { data.play = cleanLink(document.getElementById('edit_play').value); }
+        currentPage.movie = 1; currentPage.series = 1; currentPage.popular = 1;
+        db.ref(`${path}/${key}`).update(data).then(() => {
+            if (path === 'movies') {
+                const pc = allPopularData.find(p => p.originalKey === key);
+                if (pc) db.ref('popular_movies/' + pc.key).update(data);
+            } else if (path === 'popular_movies') {
+                const me = allPopularData.find(p => p.key === key);
+                const exists = me && me.originalKey && [...allMoviesData, ...allSeriesData].some(x => x.key === me.originalKey);
+                if (exists) db.ref('movies/' + me.originalKey).update(data);
+            }
+            toast('Updated!'); closeEditModal();
+            setTimeout(() => { const l = document.getElementById(path === 'popular_movies' ? 'popular-list' : (isS ? 'series-list' : 'movie-list')); if (l) l.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 250);
+        });
     }
 
     function updateSeasonDropdown() {
@@ -719,10 +736,10 @@
 
     function handleSeasonChange() { saveCurrentAddEpisodes(); currentAddSeason = document.getElementById('s_season_selector').value; document.getElementById('s_season_selector2').value = currentAddSeason; loadAddEpisodes(); }
     function handleSeasonChange2() { saveCurrentAddEpisodes(); currentAddSeason = document.getElementById('s_season_selector2').value; document.getElementById('s_season_selector').value = currentAddSeason; loadAddEpisodes(); }
-    function saveCurrentAddEpisodes() { const eps = {}; document.querySelectorAll('.ep-title').forEach((el, i) => { const l = document.querySelectorAll('.ep-link')[i].value; if(el.value && l) eps[`ep_${i+1}`] = { title: el.value, link: l }; }); seriesDraftEpisodes[currentAddSeason] = eps; }
+    function saveCurrentAddEpisodes() { const eps = {}; document.querySelectorAll('.ep-title').forEach((el, i) => { const l = document.querySelectorAll('.ep-link')[i].value; if(el.value && l) eps[`ep_${i+1}`] = { title: el.value, link: cleanLink(l) }; }); seriesDraftEpisodes[currentAddSeason] = eps; }
     function loadAddEpisodes() { const container = document.getElementById('episode-entry-container'); if(!container) return; container.innerHTML = ''; const data = seriesDraftEpisodes[currentAddSeason] || {}; const sortedKeys = Object.keys(data).sort((a, b) => parseInt(a.replace('ep_', '')) - parseInt(b.replace('ep_', ''))); if(sortedKeys.length > 0) sortedKeys.forEach(k => addEpisodeInput(data[k].title, data[k].link)); else addEpisodeInput(); }
     function addEpisodeInput(t = '', l = '') { buildEpRow('episode-entry-container', t, l, ''); }
-    function addSeries(e) { e.preventDefault(); saveCurrentAddEpisodes(); if (!validateNew(document.getElementById('s_title').value, [document.getElementById('s_img').value], allSeriesData)) return; db.ref('movies').push({ type: 'series', addedAt: firebase.database.ServerValue.TIMESTAMP, title: document.getElementById('s_title').value, category: document.getElementById('s_cat').value, img: document.getElementById('s_img').value, genres: document.getElementById('s_genres').value, rating: parseFloat(document.getElementById('s_rating').value) || null, year: document.getElementById('s_year').value, seasons: parseInt(document.getElementById('s_seasons').value), episodes: seriesDraftEpisodes, otherDownloadLink: document.getElementById('s_down').value }).then(() => { e.target.reset(); seriesDraftEpisodes = { 'S1': {} }; currentAddSeason = 'S1'; updateSeasonDropdown(); toast('Series Added!'); }); }
+    function addSeries(e) { e.preventDefault(); saveCurrentAddEpisodes(); if (!validateNew(document.getElementById('s_title').value, [document.getElementById('s_img').value], allSeriesData)) return; currentPage.series = 1; db.ref('movies').push({ type: 'series', addedAt: firebase.database.ServerValue.TIMESTAMP, title: document.getElementById('s_title').value, category: document.getElementById('s_cat').value, img: document.getElementById('s_img').value, rating: parseFloat(document.getElementById('s_rating').value) || null, year: document.getElementById('s_year').value, seasons: parseInt(document.getElementById('s_seasons').value), episodes: seriesDraftEpisodes, otherDownloadLink: document.getElementById('s_down').value }).then(() => { e.target.reset(); seriesDraftEpisodes = { 'S1': {} }; currentAddSeason = 'S1'; updateSeasonDropdown(); toast('Series Added!'); }); }
 
     function loadCategories() {
         db.ref('categories').on('value', snap => {
@@ -733,20 +750,20 @@
         });
     }
     function addCategory() { const n = document.getElementById('c_name').value.trim(); if(n) db.ref('categories').push(n).then(() => document.getElementById('c_name').value = ''); }
-    function addMovie(e) { e.preventDefault(); if (!validateNew(document.getElementById('m_title').value, [document.getElementById('m_img').value, document.getElementById('m_play').value], allMoviesData)) return; db.ref('movies').push({ type: 'movie', addedAt: firebase.database.ServerValue.TIMESTAMP, title: document.getElementById('m_title').value, category: document.getElementById('m_cat').value, img: document.getElementById('m_img').value, play: document.getElementById('m_play').value, otherDownloadLink: document.getElementById('m_down').value, year: document.getElementById('m_year').value, genres: document.getElementById('m_genres').value, rating: parseFloat(document.getElementById('m_rating').value) || null }).then(() => { e.target.reset(); toast('Movie Added'); }); }
+    function addMovie(e) { e.preventDefault(); if (!validateNew(document.getElementById('m_title').value, [document.getElementById('m_img').value, cleanLink(document.getElementById('m_play').value)], allMoviesData)) return; currentPage.movie = 1; db.ref('movies').push({ type: 'movie', addedAt: firebase.database.ServerValue.TIMESTAMP, title: document.getElementById('m_title').value, category: document.getElementById('m_cat').value, img: document.getElementById('m_img').value, play: cleanLink(document.getElementById('m_play').value), otherDownloadLink: document.getElementById('m_down').value, year: document.getElementById('m_year').value, rating: parseFloat(document.getElementById('m_rating').value) || null }).then(() => { e.target.reset(); toast('Movie Added'); }); }
 
     function loadContent() {
         db.ref('movies').on('value', snap => {
             allMoviesData = []; allSeriesData = [];
             snap.forEach(c => { const v = c.val(); v.key = c.key; v.dbPath = 'movies'; if(v.type === 'series' || v.episodes) allSeriesData.push(v); else allMoviesData.push(v); });
-            allMoviesData.reverse(); allSeriesData.reverse();
+            allMoviesData.sort(byNewest); allSeriesData.sort(byNewest);
             document.getElementById('count-movies').innerText = allMoviesData.length; document.getElementById('count-series').innerText = allSeriesData.length;
             renderPaginatedList(allMoviesData, 'movie-list', 'movie', 'movie-pagination', 'movies');
             renderPaginatedList(allSeriesData, 'series-list', 'series', 'series-pagination', 'movies');
         });
         db.ref('popular_movies').on('value', snap => {
             allPopularData = []; snap.forEach(c => { const v = c.val(); v.key = c.key; v.dbPath = 'popular_movies'; allPopularData.push(v); });
-            allPopularData.reverse(); renderPaginatedList(allPopularData, 'popular-list', 'popular', 'popular-pagination', 'popular_movies');
+            allPopularData.sort(popOrder); renderPaginatedList(allPopularData, 'popular-list', 'popular', 'popular-pagination', 'popular_movies');
         });
         db.ref('requests').on('value', snap => {
             const list = document.getElementById('req-list'); if(!list) return; list.innerHTML = ''; let count = 0;
