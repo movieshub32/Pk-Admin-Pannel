@@ -1,5 +1,5 @@
 
-name: Build PK Movies Web App APK
+name: Build PK Movies Admin APK
 
 on:
   workflow_dispatch:
@@ -26,13 +26,13 @@ jobs:
         with:
           gradle-version: 8.7
 
-      - name: Configure App
+      - name: Configure Admin App
         shell: bash
         run: |
-          echo "APP_NAME=PK MOVIES" >> $GITHUB_ENV
-          echo "APP_ID=pk.movies.viewer.web" >> $GITHUB_ENV
-          echo "APP_URL=https://movieshub32.github.io/Pk-Movies/" >> $GITHUB_ENV
-          echo "ARTIFACT_NAME=PK-MOVIES-VIEWER-APK" >> $GITHUB_ENV
+          echo "APP_NAME=PK MOVIES ADMIN" >> $GITHUB_ENV
+          echo "APP_ID=pk.movies.admin.web" >> $GITHUB_ENV
+          echo "APP_URL=https://movieshub32.github.io/Pk-Admin-Pannel/" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=PK-MOVIES-ADMIN-APK" >> $GITHUB_ENV
 
       - name: Create Android Project
         shell: bash
@@ -56,7 +56,7 @@ jobs:
                   mavenCentral()
               }
           }
-          rootProject.name = "PKMoviesWebApp"
+          rootProject.name = "PKMoviesAdminWebApp"
           include ':app'
           EOF
 
@@ -76,7 +76,7 @@ jobs:
               compileSdk 35
 
               defaultConfig {
-                  applicationId "pk.movies.viewer.web"
+                  applicationId "pk.movies.admin.web"
                   minSdk 23
                   targetSdk 28
                   versionCode 1
@@ -198,8 +198,8 @@ jobs:
                       webView.goBack();
                   } else {
                       new AlertDialog.Builder(this)
-                          .setTitle("Exit PK MOVIES?")
-                          .setMessage("Do you want to exit the app?")
+                          .setTitle("Exit PK MOVIES ADMIN?")
+                          .setMessage("Do you want to exit the Admin app?")
                           .setPositiveButton("YES", (dialog, which) -> finish())
                           .setNegativeButton("NO", (dialog, which) -> dialog.dismiss())
                           .setCancelable(true)
@@ -226,13 +226,13 @@ jobs:
           }
           EOF
 
-      - name: Build APK
+      - name: Build Admin APK
         run: gradle assembleDebug
 
-      - name: Upload APK
+      - name: Upload Admin APK
         uses: actions/upload-artifact@v4
         with:
-          name: PK-MOVIES-VIEWER-APK
+          name: PK-MOVIES-ADMIN-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
